@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Wise Fart</title>
+<style>
+    html,body{margin:0;height:100%;overflow:hidden;background:#000;font-family:sans-serif;}
+
+    /* ─── welcome ─── */
+    #welcome{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;background:#000;color:#fff;gap:40px;}
+    #welcome h1{font-size:120px;margin:0;}
+    #startBtn{padding:0px 60px;font-size:32px;font-weight:700;cursor:pointer;border:none;border-radius:8px;background:#ffc107;color:#000;}
+
+    /* ─── game canvas ─── */
+    #wrap{position:absolute;top:50%;left:47.5%;transform-origin:top left;display:none;}
+    #stage{width:2000px;height:1080px;position:relative;overflow:hidden;}
+    #bg{position:relative;inset:0;width:100%;height:100%;object-fit:cover;cursor:pointer;}
+
+    /* ─── HUD ─── */
+    #hud{position:absolute;top:30px;left:30px;right:30px;display:flex;align-items:center;gap:40px;z-index:10;}
+
+    #title{font:700 64px/1 sans-serif;color:#fff;text-shadow:2px 2px 4px #000;cursor:pointer;user-select:none;}
+
+    #spacer{flex:1 1 auto;}
+
+    #counter{display:flex;align-items:center;gap:14px;font:700 104px/1 sans-serif;color:#fff;text-shadow:2px 2px 4px #000;pointer-events:none;}
+    #counter img{width:128px;height:128px;}
+
+    #mute{width:96px;height:96px;border:none;border-radius:50%;font-size:60px;cursor:pointer;background:#333;color:#fff;display:flex;align-items:center;justify-content:center;}
+
+    /* ─── floating reward ─── */
+    .float{position:absolute;font:700 104px/1 sans-serif;color:#fff;text-shadow:2px 2px 4px #000;
+           display:flex;align-items:center;gap:14px;pointer-events:none;}
+    .float img{width:104px;height:104px;}
+    @keyframes rise{from{opacity:1;transform:translateY(0);}to{opacity:0;transform:translateY(-90px);}}
+</style>
+</head>
+<body>
+
+<!-- welcome -->
+<div id="welcome">
+    <h1>Wise Fart</h1>
+    <button id="startBtn">START</button>
+</div>
+
+<!-- game -->
+<div id="wrap">
+    <div id="stage">
+        <img id="bg" src="2.png" alt="background">
+
+        <!-- HUD -->
+        <div id="hud">
+            <div id="title">Wise&nbsp;Fart</div>
+            <div id="spacer"></div>
+            <div id="counter"><img src="3.png" alt="coin"><span>0</span></div>
+            <button id="mute">🔊</button>
+        </div>
+    </div>
+</div>
+
+<script>
+/* file paths */
+const CLICK_SFX='fart.mp3';
+const BG_MUSIC='wise.mp3';
+const COIN_ICON='3.png';
+
+/* responsive contain fit */
+const wrap=document.getElementById('wrap');
+function fit(){
+    const scale=Math.min(innerWidth/1500,innerHeight/1000);
+    wrap.style.transform=`translate(-50%,-50%) scale(${scale})`;
+    wrap.dataset.scale=scale;
+}
+addEventListener('resize',fit);
+
+/* audio */
+const music=new Audio(BG_MUSIC); music.loop=true; music.volume=0.4;
+const clickPool=[...Array(4)].map(()=>new Audio(CLICK_SFX));
+let clickIdx=0, muted=false;
+const mute=document.getElementById('mute');
+mute.onclick=()=>{muted=!muted; muted?music.pause():music.play(); mute.textContent=muted?'🔇':'🔊';};
+
+/* state + reset on title click */
+let coins=0;
+const counter=document.querySelector('#counter span');
+document.getElementById('title').onclick=()=>{coins=0; counter.textContent=0;};
+
+/* start */
+document.getElementById('startBtn').onclick=()=>{
+    document.getElementById('welcome').style.display='none';
+    wrap.style.display='block';
+    fit();
+    music.play().catch(()=>{});
+};
+
+/* click handler */
+document.getElementById('stage').addEventListener('click',e=>{
+    if(muted) return;
+    const click=clickPool[clickIdx]; click.currentTime=0; click.play().catch(()=>{});
+    clickIdx=(clickIdx+1)%clickPool.length;
+
+    counter.textContent=++coins;
+
+    const rect=wrap.getBoundingClientRect(),s=+wrap.dataset.scale||1;
+    const fx=document.createElement('div');
+    fx.className='float';
+    fx.innerHTML=`<img src="${COIN_ICON}" alt="coin">+1`;
+    fx.style.left=`${(e.clientX-rect.left)/s}px`;
+    fx.style.top =`${(e.clientY-rect.top )/s}px`;
+    fx.style.animation='rise 0.9s forwards';
+    document.getElementById('stage').appendChild(fx);
+    setTimeout(()=>fx.remove(),900);
+});
+</script>
+
+</body>
+</html>
