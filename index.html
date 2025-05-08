@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
     <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-E5Q59W2ZYR"></script>
 <script>
@@ -122,6 +123,15 @@ document.getElementById('stage').addEventListener('click',e=>{
     document.getElementById('stage').appendChild(fx);
     setTimeout(()=>fx.remove(),900);
 });
+    const wrap = document.getElementById('wrap');
+    function fit() {
+      // keep the original 1920×1080 basis – looks best in landscape phones
+      const scale = Math.min(innerWidth / 1920, innerHeight / 1080);
+      wrap.style.transform = `translate(-50%,-50%) scale(${scale})`;
+      wrap.dataset.scale = scale;
+}
+    fit();                 // 2) run once immediately
+    addEventListener('resize', fit);
 </script>
 
 </body>
