@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WiseFart Toilet Clicker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.1/dist/confetti.browser.min.js"></script>
+  <style>
+    body { zoom:1.4; background:linear-gradient(45deg,#8EEAF6,#34C6DF,#0B91B3,#087197); background-size:400% 400%; animation:bg 20s ease infinite; margin:0; min-height:100vh; font-family:Inter,ui-rounded,sans-serif; overflow-x:hidden; position:relative; }
+    @keyframes bg {0%,100%{background-position:0 50%}50%{background-position:100% 50%}}
+    .glass { background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.35); backdrop-filter:blur(14px); }
+    .pulse { animation:p .25s ease-out; } @keyframes p {0%{transform:scale(1.2)}100%{transform:scale(1)}}
+    #toiletBtn { transition:transform .15s; animation:glow 2s ease-in-out infinite; }
+    #toiletBtn:hover { transform:scale(1.03); box-shadow:0 0 30px rgba(0,255,255,0.6); }
+    #toiletBtn:active { transform:scale(.9); }
+    @keyframes glow {0%,100%{box-shadow:0 0 12px rgba(0,255,255,.4)}50%{box-shadow:0 0 42px rgba(0,255,255,1)}}
+    .floating-coin { position:absolute; font-size:1.5rem; font-weight:bold; color:#ffeb3b; pointer-events:none; animation:floatCoin 1s ease-out forwards; mix-blend-mode:hard-light; }
+    @keyframes floatCoin {0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-50px)}}
+    #bubbles { position:fixed; inset:0; pointer-events:none; z-index:-1; }
+    #bubbles span { position:absolute; bottom:-10vmin; width:8vmin; height:8vmin; background:rgba(255,255,255,0.15); border-radius:50%; animation:rise 12s linear infinite; filter:blur(1px); }
+    @keyframes rise { to{transform:translateY(-110vh) scale(1.4);} }
+    .panel { background:#f7fafc; border-radius:1rem; box-shadow:0 8px 24px rgba(0,0,0,0.1); overflow:hidden; }
+    .panel-header { background:#2c5282; color:#fff; padding:.75rem 1rem; font-weight:700; font-size:1.125rem; }
+    .panel-content { padding:1rem; display:flex; flex-direction:column; gap:.75rem; color:#000; }
+    .upgrade-btn { background:#edf2f7; color:#1a202c; border:2px solid #cbd5e0; border-radius:.75rem; padding:1rem; font-size:1rem; font-weight:600; display:flex; justify-content:space-between; align-items:center; transition:background .2s,transform .1s,box-shadow .2s; cursor:pointer; }
+    .upgrade-btn:hover { background:#e2e8f0; transform:translateY(-2px); box-shadow:0 4px 8px rgba(0,0,0,0.2); }
+    .upgrade-btn.disabled { opacity:.6; cursor:not-allowed; transform:none; box-shadow:none; }
+  </style>
+</head>
+<body class="text-black select-none">
+  <div id="bubbles"></div>
+
+  <!-- Audio -->
+  <audio id="bgm" src="1.mp3" preload="auto"></audio>
+  <audio id="flush" src="flush.mp3" preload="auto"></audio>
+  <audio id="clickSfx" src="sound-fx/click.mp3" preload="auto"></audio>
+  <audio id="upgradeSfx" src="sound-fx/upgrade.mp3" preload="auto"></audio>
+  <audio id="confettiSfx" src="sound-fx/milestone.mp3" preload="auto"></audio>
+
+  <!-- Header -->
+  <header class="glass fixed inset-x-0 top-0 flex items-center justify-between px-6 py-3 z-10">
+    <div class="text-2xl font-extrabold flex items-center gap-2">💨 WiseFart</div>
+    <div class="text-lg font-bold flex items-center gap-2">🪙/Sec: <span id="totalCPS">0</span></div>
+    <div class="relative" id="menuWrap">
+      <button id="menuBtn" class="font-medium">Menu ▾</button>
+      <ul id="menu" class="hidden absolute right-0 mt-2 w-40 panel text-gray-900">
+        <li class="px-4 py-2">
+          <label for="volumeSlider" class="block text-sm font-medium text-gray-700">Volume</label>
+          <input id="volumeSlider" type="range" min="0" max="100" class="w-full mt-1" />
+        </li>
+      </ul>
+    </div>
+  </header>
+  <div class="pt-24"></div>
+
+  <main class="max-w-5xl mx-auto px-4 grid md:grid-cols-3 gap-8">
+    <!-- Leaderboard -->
+    <aside class="panel fixed left-0 top-24 w-60 mx-4 mb-4">
+      <div class="panel-header">Leaderboard</div>
+      <div id="leaderboardList" class="panel-content overflow-y-auto max-h-64"></div>
+      <button id="registerBtn" class="upgrade-btn w-full text-center mt-2">Register Score</button>
+    </aside>
+    <!-- Main Section -->
+    <section class="md:col-span-2 flex flex-col items-center gap-8">
+      <div class="text-6xl font-extrabold">🪙 <span id="coins">0</span></div>
+      <button id="toiletBtn" class="w-56 h-56 bg-white rounded-full ring-8 ring-cyan-300 overflow-hidden">
+        <img id="toiletImg" src="3.png" alt="Toilet" class="w-full h-full object-contain">
+      </button>
+    </section>
+
+    <!-- Upgrades Panels -->
+    <aside class="flex flex-col gap-4">
+      <details open class="panel">
+        <summary class="panel-header">Click Upgrades</summary>
+        <div id="clickList" class="panel-content"></div>
+      </details>
+      <details class="panel">
+        <summary class="panel-header">Passive Upgrades</summary>
+        <div id="passiveList" class="panel-content"></div>
+      </details>
+    </aside>
+  </main>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    function fmt(n) {
+      const abs = Math.abs(n);
+      if (abs >= 1e12) return (n/1e12).toFixed(2) + 't';
+      if (abs >= 1e9) return (n/1e9).toFixed(2) + 'b';
+      if (abs >= 1e6) return (n/1e6).toFixed(2) + 'm';
+      if (abs >= 1e3) return (n/1e3).toFixed(2) + 'k';
+      return n.toString();
+    }
+    // Audio
+    const bgm = $('bgm'), tracks = ['1.mp3','2.mp3','3.mp3']; let trackIndex = 1;
+    function playNextTrack() { bgm.src = tracks[trackIndex]; bgm.play().catch(() => {}); trackIndex = (trackIndex+1)%tracks.length; }
+    bgm.addEventListener('ended', playNextTrack);
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    document.body.addEventListener('click', () => { if (audioCtx.state === 'suspended') audioCtx.resume(); }, {once:true});
+    // Bubbles
+    for (let i=0;i<20;i++) { const s = document.createElement('span'); s.style.left = Math.random()*100+'%'; s.style.animationDelay = Math.random()*12+'s'; $('bubbles').appendChild(s); }
+    // State
+    let coins = 0, cpc = 1, cps = 0, clickTimes = [];
+    function updateCPS() {
+      const now = Date.now();
+      clickTimes = clickTimes.filter(t => now - t < 1000);
+      const rate = clickTimes.length * cpc + cps;
+      $('totalCPS').textContent = fmt(rate);
+    }
+    const ui = { coins: $('coins'), totalCPS: $('totalCPS') };
+    const toilet = $('toiletBtn'), flush = $('flush'), clickSfx = $('clickSfx');
+    // Menu
+    $('menuBtn').onclick = () => $('menu').classList.toggle('hidden');
+    document.addEventListener('click', e => { if (!$('menuWrap').contains(e.target)) $('menu').classList.add('hidden'); });
+    // Leaderboard: always GET/PUT LB.json
+    let leaderboard = [];
+    async function loadLeaderboard() {
+      try {
+        const res = await fetch('LB.json');
+        leaderboard = await res.json();
+        displayLeaderboard();
+      } catch (err) {
+        console.error('Failed to load LB.json', err);
+      }
+    }
+    function displayLeaderboard() {
+      const el = $('leaderboardList');
+      let html = '';
+      leaderboard.slice(0,50).forEach((e,i) => {
+        html += `<div class="flex justify-between"><span>${i+1}. ${e.name}</span><span>${fmt(e.score)}</span></div>`;
+      });
+      el.innerHTML = html;
+    }
+    loadLeaderboard();
+    // Register Score
+    $('registerBtn').onclick = async () => {
+      const name = prompt('Enter name (letters only, max 16 chars):');
+      if (!name) return;
+      if (!/^[A-Za-z]{1,16}$/.test(name)) { alert('Invalid'); return; }
+      const banned = ['badword1','badword2'];
+      if (banned.includes(name.toLowerCase())) { alert('Profanity not allowed'); return; }
+      if (leaderboard.find(e => e.name === name)) { alert('Name taken'); return; }
+      // Add and save
+      leaderboard.push({ name, score: coins });
+      leaderboard.sort((a,b) => b.score - a.score);
+      try {
+        await fetch('LB.json', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(leaderboard)
+        });
+      } catch (err) {
+        console.error('Failed to save to LB.json', err);
+      }
+      // Reset game
+      coins = 0; cpc = 1; cps = 0; clickTimes = [];
+      ui.coins.textContent = fmt(coins);
+      updateCPS();
+      document.querySelectorAll('.upgrade-btn').forEach(b => b.classList.remove('disabled'));
+      displayLeaderboard();
+    };
+    // Click handler
+    toilet.onclick = () => {
+      clickTimes.push(Date.now());
+      coins += cpc;
+      ui.coins.textContent = fmt(coins);
+      flush.play().catch(() => {});
+      clickSfx.play().catch(() => {});
+      updateCPS();
+      const fc = document.createElement('div'); fc.className = 'floating-coin'; fc.textContent = '+'+cpc;
+      const r = toilet.getBoundingClientRect(), rad = 30;
+      fc.style.left = `${r.left + r.width/2 + (Math.random()*2-1)*rad}px`;
+      fc.style.top  = `${r.top + (Math.random()*2-1)*rad}px`;
+      document.body.appendChild(fc);
+      setTimeout(() => fc.remove(), 1000);
+      if (bgm.paused) bgm.play().catch(() => {});
+    };
+    // Passive income
+    setInterval(() => { coins += cps; ui.coins.textContent = fmt(coins); updateCPS(); }, 1000);
+    // Upgrades
+    const clickUpgrades = [{name:'Plunger×2',cost:50,dc:1,img:'3.png'},{name:'Bidet×2',cost:500,dc:2,img:'3.png'},{name:'Gold×5',cost:5000,dc:5,img:'3.png'}];
+    const passiveUpgrades = [{name:'Soap+1',cost:250,dp:1,img:'3.png'},{name:'Janitor+5',cost:1500,dp:5,img:'3.png'},{name:'Plumbing+20',cost:10000,dp:20,img:'3.png'}];
+    function createUpgrades(list,id,isClick) {
+      const c = $(id);
+      list.forEach(item => {
+        const btn = document.createElement('div'); btn.className = 'upgrade-btn';
+        btn.innerHTML = `<span>${item.name}</span><span>${fmt(item.cost)}🪙</span>`;
+        btn.onclick = () => {
+          if (coins < item.cost || btn.classList.contains('disabled')) return;
+          coins -= item.cost;
+          if (isClick) cpc += item.dc; else cps += item.dp;
+          ui.coins.textContent = fmt(coins);
+          $('toiletImg').src = item.img;
+          btn.classList.add('disabled');
+          updateCPS();
+        };
+        c.appendChild(btn);
+      });
+    }
+    createUpgrades(clickUpgrades,'clickList',true);
+    createUpgrades(passiveUpgrades,'passiveList',false);
+  </script>
+</body>
+</html>
